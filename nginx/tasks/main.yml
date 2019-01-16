@@ -1,0 +1,45 @@
+---
+  - name: install dependencies
+    notify: restart nginx
+    apt: name=python-httplib2 state=present
+    tags: ['packages', 'apt']
+      
+  - name: cat current app configuration
+    shell: cat /etc/nginx/sites-available/{{item.key}}
+    tags: ['cat']
+    with_dict: "{{sites}}"
+    register: catConfig
+    changed_when: false
+
+  - debug: msg={{item.stdout_lines}}
+    loop: "{{catConfig.results}}"
+    
+
+  - name: install nginx
+    apt: name=nginx state=present update_cache=yes
+  
+  - name: ensure nginx started
+    service: name=nginx state=started enabled=yes
+  
+  - name: configure {{item.key}} nginx site
+    template: src=templates/nginx.conf.j2 dest=/etc/nginx/sites-available/{{item.key}} mode=0775
+    with_dict: "{{sites}}"
+    notify: restart nginx
+
+  - name: get active sites
+    shell: ls -1 /etc/nginx/sites-enabled/
+    register: activeSites
+    changed_when: "activeSites.stdout_lines != sites.keys()"
+
+  - name: deactivate other nginx sites
+    file: path=/etc/nginx/sites-enabled/{{item}} state=absent
+    with_items: "{{activeSites.stdout_lines}}"
+    when: item not in sites
+    notify: restart nginx
+    
+  - name: activate {{item.key}} nginx site
+    file: src=/etc/nginx/sites-available/{{item.key}} dest=/etc/nginx/sites-enabled/{{item.key}} state=link
+    with_dict: "{{sites}}"
+    notify: restart nginx
+
+

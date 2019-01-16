@@ -1,0 +1,8 @@
+---
+  - hosts: webserver
+    become: true
+    gather_facts: false
+    roles:
+      - apache2
+      - role: demo_app
+        database_name: "{{db_name}}"

@@ -1,0 +1,4 @@
+---
+- import_playbook: stack-stop.yml
+- import_playbook: stack-start.yml
+- import_playbook: stack-status.yml

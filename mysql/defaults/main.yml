@@ -1,0 +1,5 @@
+---
+db_name: demoDB
+db_user: test_user
+db_user_pass: test_pass
+db_user_host: '%'

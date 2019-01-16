@@ -1,0 +1,103 @@
+---
+
+
+  - hosts: loadbalancer
+    gather_facts: false
+    become: true
+    tasks:
+      - name: started nginx
+        service:
+          name: nginx
+          state: started
+          enabled: yes
+
+      - name: nginx status
+        command: systemctl is-active nginx 
+        ignore_errors: yes
+        register: out
+        changed_when: false
+      
+      - debug: var=out.stdout_lines
+
+      - name: verify nginx listening on port 80
+        wait_for: port=80 timeout=1
+
+      
+  - hosts: webserver
+    gather_facts: false
+    become: true
+    tasks:
+      - name: started apache2
+        service:
+          name: apache2 
+          state: started
+          enabled: yes
+    
+      - name: apache2 status
+        command: systemctl is-active apache2
+        ignore_errors: yes
+        register: out
+        changed_when: false
+      
+      - debug: var=out.stdout_lines
+
+      - name: verify apache2 listening on port 80
+        wait_for: port=80 timeout=1
+      
+  - hosts: database
+    name: restarting mysql
+    become: true
+    tasks:
+      - name: started mysql
+        service: name=mysql state=started enabled=yes
+
+      - name: mysql status
+        command: systemctl is-active mysql 
+        ignore_errors: yes
+        register: out
+        changed_when: false
+      
+      - debug: var=out.stdout_lines
+
+      - name: verify mysql listening on port 3306
+        wait_for: host={{ansible_default_ipv4.address}} port=3306 timeout=1
+
+
+  - hosts: control
+    name: healthchecks
+    gather_facts: false
+    tasks:
+      - name: verify loadbalancer response
+        uri: url=http://{{item}} return_content=yes
+        with_items: "{{ groups['loadbalancer'] }}" 
+        register: lb_index
+
+      - fail: msg="index failed to return content"
+        when: "'Server name:' not in item.content"
+        with_items: "{{lb_index.results}}"
+
+      - name: verify webserver response
+        uri: url=http://{{item}} return_content=yes
+        with_items: "{{ groups['webserver'] }}"
+        register: app_index
+    
+
+      - fail: msg="index failed to return content"
+        when: "'Server name: {{item.item}}' not in item.content"
+        with_items: "{{app_index.results}}"
+
+      - name: verify db response
+        uri: url=http://{{item}}/db return_content=yes
+        with_items: "{{ groups['loadbalancer'] }}" 
+        register: lb_db_index
+
+      - fail: msg="index failed to return content"
+        when: "'Database Connected from' not in item.content"
+        with_items: "{{lb_db_index.results}}"
+
+
+
+        
+
+
+
